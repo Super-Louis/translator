@@ -33,27 +33,35 @@ def gen_datasets():
     decode_output = np.expand_dims(decode_output, 2)
     return encode_input, decode_input, decode_output
 
-def train():
+def simple_seq2seq():
     # encoder
-    encode_input, decode_input, decode_output = gen_datasets()
-    encode_input, decode_input, decode_output = shuffle(encode_input, decode_input, decode_output)
-    encoder_input = Input(shape=(None, ), name='encode_input')
+    encoder_input = Input(shape=(None,), name='encode_input')
     embedded_input = Embedding(config['en_voc_size'], 256, mask_zero=True, name="embedded_layer")(encoder_input)
     encoder = Bidirectional(LSTM(128, return_state=True), name="bi_lstm_layer", merge_mode="ave")
     encoder_outputs, state_h, state_c, state_h_rev, state_c_rev = encoder(embedded_input)
     encoder_states = [state_h, state_c, state_h_rev, state_c_rev]
 
     # decoder
-    decoder_input = Input(shape=(None, ), name='decode_input')
+    decoder_input = Input(shape=(None,), name='decode_input')
     embedded_input2 = Embedding(config['ch_voc_size'], 256, mask_zero=True, name="embedded_layer2")(decoder_input)
-    decoder = Bidirectional(LSTM(128, return_sequences=True, return_state=True), name="bi_lstm_layer2", merge_mode="ave")
+    decoder = Bidirectional(LSTM(128, return_sequences=True, return_state=True), name="bi_lstm_layer2",
+                            merge_mode="ave")
     decoder_outputs, _, _, _, _ = decoder(embedded_input2, initial_state=encoder_states)
     decoder_outputs = Dropout(rate=0.5)(decoder_outputs)
     decoder_dense = Dense(config['ch_voc_size'], activation='softmax', name='dense_layer')
     decoder_outputs = decoder_dense(decoder_outputs)
 
-    # train model
     model = Model([encoder_input, decoder_input], decoder_outputs)
+    return model
+
+def attention_seq2seq():
+    # todo: add attention mechanism
+    pass
+
+def train():
+    encode_input, decode_input, decode_output = gen_datasets()
+    encode_input, decode_input, decode_output = shuffle(encode_input, decode_input, decode_output)
+    model = simple_seq2seq()
     opt = optimizers.RMSprop(lr=0.01, decay=1e-6)
     model.compile(optimizer=opt, loss='sparse_categorical_crossentropy')
     model.summary()

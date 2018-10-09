@@ -1,0 +1,13 @@
+{
+  "batch_size": 128,
+  "epoch": 10,
+  "embedding_size": 300,
+  "hidden_size": 128,
+  "en_voc_size": 12222,
+  "ch_voc_size": 30000,
+  "max_num": 30,
+  "start_word": "<start>",
+  "end_word": "<end>",
+  "pad_word": "<pad>",
+  "unknown_word": "<unk>"
+}

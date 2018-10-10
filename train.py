@@ -66,7 +66,7 @@ def attention_seq2seq(input_len, output_len):
     decoder = Bidirectional(LSTM(128, return_state=True), name="bi_lstm_layer2",merge_mode="ave")
     decoder_dense = Dense(config['ch_voc_size'], activation='softmax', name='dense_layer')
     # initial_input
-    one_step_input = encoder_outputs[:,-1,:]
+    one_step_input = K.zeros(shape=(K.shape(encoder_input)[0], 128))
     outputs = []
 
     def softmax(x, axis=1):

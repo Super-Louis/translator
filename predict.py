@@ -85,4 +85,4 @@ def predict_trans(inputs):
     return predict_words
 
 if __name__ == '__main__':
-    predict_trans('I love you')
+    predict_trans('I love you.')

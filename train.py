@@ -3,9 +3,11 @@
 # FileName: train.py
 # Python  : python3.6
 # Time    : 18-9-28 14:25
-from keras.layers import LSTM, Input, Dense, Bidirectional, Embedding, Dropout
+from keras.layers import LSTM, Input, Dense, Bidirectional, Embedding, \
+    Dropout, Concatenate, RepeatVector, Activation, Dot
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
+import keras.backend as K
 from sklearn.utils import shuffle
 from keras import optimizers
 from keras.models import Model
@@ -54,14 +56,58 @@ def simple_seq2seq():
     model = Model([encoder_input, decoder_input], decoder_outputs)
     return model
 
-def attention_seq2seq():
-    # todo: add attention mechanism
-    pass
+def attention_seq2seq(input_len, output_len):
+    # the decode input is not used
+    encoder_input = Input(shape=(None,), name='encode_input')
+    embedded_input = Embedding(config['en_voc_size'], 256, mask_zero=True, name="embedded_layer")(encoder_input)
+    encoder = Bidirectional(LSTM(128, return_state=True, return_sequences=True), name="bi_lstm_layer", merge_mode="ave")
+    encoder_outputs, state_h, state_c, state_h_rev, state_c_rev = encoder(embedded_input)
+    initial_state = [state_h, state_c, state_h_rev, state_c_rev]
+    decoder = Bidirectional(LSTM(128, return_state=True), name="bi_lstm_layer2",merge_mode="ave")
+    decoder_dense = Dense(config['ch_voc_size'], activation='softmax', name='dense_layer')
+    # initial_input
+    one_step_input = encoder_outputs[:,-1,:]
+    outputs = []
 
-def train():
+    def softmax(x, axis=1):
+        ndim = K.ndim(x)
+        if ndim == 2:
+            return K.softmax(x)
+        elif ndim > 2:
+            e = K.exp(x - K.max(x, axis=axis, keepdims=True))
+            s = K.sum(e, axis=axis, keepdims=True)
+            return e / s
+        else:
+            raise ValueError('Cannot apply softmax to a tensor that is 1D')
+
+    def one_step_attention(encoder_outputs, one_step_input):
+        one_step_input = RepeatVector(input_len)(one_step_input)
+        concat = Concatenate(axis=-1)([encoder_outputs, one_step_input])
+        e = Dense(10, activation="tanh")(concat)
+        energies = Dense(1, activation="relu")(e)
+        alphas = Activation(softmax)(energies)
+        context = Dot(axes=1)([alphas, encoder_outputs])
+        return context
+
+    for i in range(output_len):
+        context = one_step_attention(encoder_outputs, one_step_input)
+        one_step_output, state_h, state_c, state_h_rev, state_c_rev = decoder(context, initial_state=initial_state)
+        initial_state = [state_h, state_c, state_h_rev, state_c_rev]
+        one_step_output = Dropout(rate=0.5)(one_step_output)
+        one_step_input = one_step_output
+        decoder_output = decoder_dense(one_step_output)
+        outputs.append(decoder_output)
+    model = Model(inputs=encoder_input, outputs=outputs)
+    return model
+
+def train(mode):
+    model_dict = {
+        "simple": simple_seq2seq,
+        "attention": attention_seq2seq
+    }
     encode_input, decode_input, decode_output = gen_datasets()
     encode_input, decode_input, decode_output = shuffle(encode_input, decode_input, decode_output)
-    model = simple_seq2seq()
+    model = model_dict[mode]()
     opt = optimizers.RMSprop(lr=0.01, decay=1e-6)
     model.compile(optimizer=opt, loss='sparse_categorical_crossentropy')
     model.summary()
@@ -77,4 +123,4 @@ def train():
         model.save('s2s_final')
 
 if __name__ == '__main__':
-    train()
+    train('simple')

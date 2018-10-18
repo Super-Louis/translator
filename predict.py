@@ -38,8 +38,8 @@ def load_s2s_model():
     embedded_input = decoder_embedding(decoder_inputs)
     decoder_state_input_h = Input(shape=(128,), name='input_3')
     decoder_state_input_c = Input(shape=(128,), name='input_4')
-    decoder_state_input_h_rev = Input(shape=(128,), name='input_3')
-    decoder_state_input_c_rev = Input(shape=(128,), name='input_4')
+    decoder_state_input_h_rev = Input(shape=(128,), name='input_3_rev')
+    decoder_state_input_c_rev = Input(shape=(128,), name='input_4_rev')
     decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c,
                              decoder_state_input_h_rev, decoder_state_input_c_rev]
     decoder_lstm = model.layers[5]
@@ -60,7 +60,7 @@ def predict_trans(inputs):
     seq = inputs.strip().lower().replace(' - ', '-')
     words = nltk.word_tokenize(seq, )
     seqs = [en_voc.get(w, en_voc["<unk>"]) for w in words]
-    sentences = pad_sequences([seqs], maxlen=config['max_num'], truncating='post')
+    sentences = pad_sequences([seqs], maxlen=config['max_num'], truncating='post', padding='post')
     states = encoder_model.predict(sentences)
     stop_condition = False
     target_sentence = [[ch_voc[config['start_word']]]]
@@ -73,7 +73,7 @@ def predict_trans(inputs):
         sampled_char = ch_voc_rev[sampled_token_index]
         predict_words.append(sampled_char)
 
-        if (sampled_char == ch_voc[config['end_word']] or
+        if (sampled_char == config['end_word'] or
            len(predict_words) > config['max_num']):
             stop_condition = True
 

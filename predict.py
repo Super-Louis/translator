@@ -28,8 +28,8 @@ def load_s2s_model():
     # form encoder_model
     model = load_model('s2s_final')
     encoder_inputs = model.input[0]
-    encoder_outputs, state_h, state_c, state_h_rev, state_c_rev = model.layers[4].output
-    encoder_states = [state_h, state_c, state_h_rev, state_c_rev]
+    encoder_outputs, state_h, state_c = model.layers[4].output
+    encoder_states = [state_h, state_c]
     encoder_model = Model(encoder_inputs, encoder_states)
 
     # form decoder_model
@@ -38,14 +38,11 @@ def load_s2s_model():
     embedded_input = decoder_embedding(decoder_inputs)
     decoder_state_input_h = Input(shape=(128,), name='input_3')
     decoder_state_input_c = Input(shape=(128,), name='input_4')
-    decoder_state_input_h_rev = Input(shape=(128,), name='input_3_rev')
-    decoder_state_input_c_rev = Input(shape=(128,), name='input_4_rev')
-    decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c,
-                             decoder_state_input_h_rev, decoder_state_input_c_rev]
+    decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
     decoder_lstm = model.layers[5]
-    decoder_outputs, state_h_dec, state_c_dec, state_h_dec_rev, state_c_dec_rev = decoder_lstm(
+    decoder_outputs, state_h_dec, state_c_dec = decoder_lstm(
         embedded_input, initial_state=decoder_states_inputs)
-    decoder_states = [state_h_dec, state_c_dec, state_h_dec_rev, state_c_dec_rev]
+    decoder_states = [state_h_dec, state_c_dec]
     dropout_layer = model.layers[6]
     decoder_outputs = dropout_layer(decoder_outputs)
     dense_layer = model.layers[7]
@@ -66,7 +63,7 @@ def predict_trans(inputs):
     target_sentence = [[ch_voc[config['start_word']]]]
     predict_words = []
     while not stop_condition:
-        output_tokens, h, c, h_rev, c_rev = decoder_model.predict(
+        output_tokens, h, c = decoder_model.predict(
             [target_sentence] + states)
         # Sample a token
         sampled_token_index = np.argmax(output_tokens[0, -1, :])
@@ -81,8 +78,8 @@ def predict_trans(inputs):
         target_sentence = [[sampled_token_index]]
 
         # Update states
-        states = [h, c, h_rev, c_rev]
+        states = [h, c]
     return predict_words
 
 if __name__ == '__main__':
-    predict_trans('I love you.')
+    print(predict_trans('how are you.'))

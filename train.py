@@ -25,9 +25,9 @@ with open('data/en_voc', 'r') as f:
     en_voc = json.load(f)
 
 def gen_datasets():
-    encode_input = np.load('data/encode_input.npy')[:10000]
-    decode_input = np.load('data/decode_input.npy')[:10000]
-    decode_output = np.load('data/decode_output.npy')[:10000]
+    encode_input = np.load('data/encode_input.npy')
+    decode_input = np.load('data/decode_input.npy')
+    decode_output = np.load('data/decode_output.npy')
     # todo: pre/post padding ?
     encode_input = pad_sequences(encode_input, maxlen=config['max_num'], truncating='post', padding='post')
     decode_input = pad_sequences(decode_input, maxlen=config['max_num'], truncating='post', padding='post')
@@ -80,55 +80,13 @@ def attention_seq2seq(input_len=config['max_num'], output_len=config['max_num'])
     embedded_input = Embedding(config['en_voc_size'], 100, weights=[en_w2v_matrix], trainable=False, name="embedded_layer")(encoder_input)
     encoder = LSTM(128, return_state=True, return_sequences=True, name="lstm_layer")
     encoder_outputs, state_h, state_c = encoder(embedded_input)
-    initial_state = [state_h, state_c] # todo: initialize to zero?
     decoder = LSTM(128, return_state=True, name="lstm_layer2")
     decoder_dense = Dense(config['ch_voc_size'], activation='softmax', name='dense_layer')
     # initial_input
-    one_step_input = Lambda(lambda X: K.zeros(shape=(K.shape(encoder_input)[0], 128)))(encoder_input)
-    outputs = []
-
-    def softmax(x, axis=1):
-        ndim = K.ndim(x)
-        if ndim == 2:
-            return K.softmax(x)
-        elif ndim > 2:
-            e = K.exp(x - K.max(x, axis=axis, keepdims=True))
-            s = K.sum(e, axis=axis, keepdims=True)
-            return e / s
-        else:
-            raise ValueError('Cannot apply softmax to a tensor that is 1D')
-
-    def one_step_attention(encoder_outputs, one_step_input):
-        # use mlp to get the weight
-        one_step_input = RepeatVector(input_len)(one_step_input)
-        concat = Concatenate(axis=-1)([encoder_outputs, one_step_input])
-        e = Dense(10, activation="tanh")(concat)
-        energies = Dense(1, activation="relu")(e)
-        alphas = Activation(softmax)(energies)
-        context = Dot(axes=1)([alphas, encoder_outputs])
-        return context
-    for i in range(output_len):
-        context = one_step_attention(encoder_outputs, one_step_input)
-        one_step_output, state_h, state_c = decoder(context, initial_state=initial_state)
-        initial_state = [state_h, state_c]
-        one_step_output = Dropout(rate=0.5)(one_step_output)
-        one_step_input = one_step_output
-        decoder_output = decoder_dense(one_step_output)
-        outputs.append(decoder_output)
-    model = Model(inputs=encoder_input, outputs=outputs)
-    return model
-
-def seq2seq_attention(input_len=config['max_num'], output_len=config['max_num']):
-    # the decode input is not used
-    encoder_input = Input(shape=(config['max_num'],), name='encode_input')
-    embedded_input = Embedding(config['en_voc_size'], 100, weights=[en_w2v_matrix], trainable=False, name="embedded_layer")(encoder_input)
-    encoder = LSTM(128, return_state=True, return_sequences=True, name="lstm_layer")
-    encoder_outputs, state_h, state_c = encoder(embedded_input)
-    initial_state = [state_h, state_c] # todo: initialize to zero?
-    decoder = LSTM(128, return_state=True, name="lstm_layer2")
-    decoder_dense = Dense(config['ch_voc_size'], activation='softmax', name='dense_layer')
-    # initial_input
-    one_step_input = Lambda(lambda X: K.zeros(shape=(K.shape(encoder_input)[0], 128)))(encoder_input)
+    h = Lambda(lambda X: K.zeros(shape=(K.shape(X)[0], 128)))(encoder_input)
+    c = Lambda(lambda X: K.zeros(shape=(K.shape(X)[0], 128)))(encoder_input)
+    one_step_input = h
+    initial_state = [h, c]
     outputs = []
 
     def softmax(x, axis=1):
@@ -185,7 +143,7 @@ def train(mode):
             input_ = encode_input
             output_ = list(decode_output.swapaxes(0,1))
         model.fit(input_, output_, validation_split=0.2, callbacks=[tb, cp],
-                  batch_size=config['batch_size'], epochs=config['epoch'])
+                  batch_size=config['batch_size'], epochs=10)
     except KeyboardInterrupt:
         # Save model
         model.save('s2s_final')
